@@ -1,13 +1,12 @@
-# Graph Contract Tests for Node Types Prototype Document
+# Prototype Document: Implement Graph Contract Tests for Node Types
 
 ## Feature Restatement
-This prototype implements Graph Contract Tests to enforce that all node types (both custom and built-in) used within graphs have associated contract tests, thereby increasing trust in the library and ensuring the safety of node behaviors during execution. By introducing a `contractTestId` attribute within the node definition, we can automatically validate that nodes undergo necessary tests before being processed, preventing potential erroneous outputs from untested nodes.
+The proposal aims to enhance the graph-execution system by integrating contract tests for all node types (both custom and built-in). This integration ensures that every node used within graphs has an associated contract test, thereby reinforcing reliability and safety in executing graphs. The absence of tests could lead to untraced errors during execution; therefore, adding a `contractTestId` to the `SerializedNode` type is vital for referencing these tests automatically during execution.
 
 ## Design
 
 ### Data Shapes
-
-#### Updated `SerializedNode` Definition
+The primary modification involves extending the existing `SerializedNode` interface.
 
 ```typescript
 interface SerializedNode {
@@ -15,60 +14,66 @@ interface SerializedNode {
     allowedTools?: string[];
     inputs?: Array<NodeInput>;
     contractTestId?: string; // New field for contract testing
-    // ... other existing fields
+    // Other existing fields...
 }
 ```
 
 ### Engine Hook Points
-
-1. **Graph Execution Logic**: Modify the `executeSubgraph` method to include a check for `contractTestId`. If present, trigger the test associated with that ID before processing the node.
-
-2. **Test Execution Management**: Enhance the `runGraphTests` function to filter nodes by their `contractTestId` and fetch the relevant tests from the store. 
-
-3. **Error Handling**: Emit an error and halt graph execution if any contract test fails, mirroring the behavior for top-level tests.
+1. **Node Processing in Execution**: Modify `executeSubgraph` to include a check for the existence of `contractTestId`. Execute the corresponding contract test prior to processing the node.
+2. **Test Execution Management**: Augment `runGraphTests` to filter and launch tests based on each node's `contractTestId`.
+3. **Error Handling**: Emit an error message for nodes that fail their contract tests, halting further graph processing.
 
 ## Example
 
-### Code Example for Graph Execution Logic
-
-```typescript
-function executeSubgraph(graph: SerializedGraph) {
-    for (const node of graph.nodes) {
-        if (node.contractTestId) {
-            const testResult = runContractTest(node.contractTestId);
-            if (!testResult.success) {
-                throw new Error(`Contract test failed for node ${node.id}: ${testResult.message}`);
-            }
-        }
-        // Continue to process the node...
-    }
-}
-
-function runContractTest(contractTestId: string) {
-    // Logic to fetch and execute the contract test...
-    return { success: true }; // or { success: false, message: '...' }
-}
-```
-
-### Example Graph JSON Configuration
+### Graph JSON Example
+Here’s an example of how nodes can be configured in graph JSON to utilize contract tests:
 
 ```json
 {
     "nodes": [
         {
             "id": "node1",
-            "allowedTools": ["tool1"],
+            "allowedTools": ["toolA"],
             "inputs": [],
-            "contractTestId": "test123" // Node with contract test
+            "contractTestId": "testNode1"
         },
         {
             "id": "node2",
-            "allowedTools": ["tool2"],
-            "inputs": [],
-            // No contract test defined for this node
+            "allowedTools": ["toolB"],
+            "inputs": [{ "from": "node1" }],
+            "contractTestId": null // This node will not run contract tests
         }
+    ],
+    "edges": [
+        { "from": "node1", "to": "node2" }
     ]
 }
 ```
 
-By implementing the above structure, we ensure that the graph execution system can enforce contract tests on all nodes, paving the way for a robust, error-less execution methodology.
+### Pseudo Code for Execution Logic
+
+```typescript
+function executeSubgraph(graph: Graph) {
+    for (const node of graph.nodes) {
+        if (node.contractTestId) {
+            const testResult = runGraphTests(node.contractTestId);
+            if (!testResult.passed) {
+                throw new Error(`Contract test failed for node ${node.id}`);
+            }
+        }
+        // Proceed with executing the node processing...
+    }
+}
+```
+
+### Unit Test Example
+An example of a unit test could be:
+
+```typescript
+test('should not process graph with failing contract tests', () => {
+    const graphWithFailingTest = getGraphWithFailingContractTest();
+    expect(() => executeSubgraph(graphWithFailingTest)).toThrow('Contract test failed for node node1');
+});
+```
+
+This prototype lays the groundwork for integrating contract tests seamlessly into the existing graph-execution framework, ensuring greater reliability and trust in node behavior.
